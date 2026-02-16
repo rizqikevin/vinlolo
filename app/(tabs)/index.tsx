@@ -14,7 +14,6 @@ import { StatusBar } from "expo-status-bar";
 import { ComponentProps, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,18 +23,19 @@ import {
   View,
   ViewToken,
 } from "react-native";
+import { FlatList } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const LAST_CATEGORY_STORAGE_KEY = "last_selected_category";
-const CATEGORY_TAB_WIDTH = 122;
+const CATEGORY_SLIDE_WIDTH = 114;
 const CATEGORY_OPTIONS: {
   key: DramaFeedCategory;
   label: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
 }[] = [
+  { key: "for-you", label: "FYP", icon: "cards-heart-outline" },
+  { key: "trending", label: "Teman", icon: "account-group-outline" },
   { key: "latest", label: "Terbaru", icon: "clock-outline" },
-  { key: "trending", label: "Trending", icon: "fire" },
-  { key: "for-you", label: "For You", icon: "thumb-up-outline" },
   { key: "vip", label: "VIP", icon: "crown-outline" },
   { key: "random", label: "Random", icon: "shuffle-variant" },
   { key: "dubbed", label: "Dubbed", icon: "microphone-outline" },
@@ -48,7 +48,7 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] =
-    useState<DramaFeedCategory>("latest");
+    useState<DramaFeedCategory>("for-you");
   const [isCategoryHydrated, setIsCategoryHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const categoryScrollRef = useRef<ScrollView>(null);
@@ -80,8 +80,6 @@ export default function Index() {
     () => CATEGORY_OPTIONS.findIndex((item) => item.key === selectedCategory),
     [selectedCategory],
   );
-  const canGoPrevCategory = selectedCategoryIndex > 0;
-  const canGoNextCategory = selectedCategoryIndex < CATEGORY_OPTIONS.length - 1;
   const bottomControlsInset = Math.max(insets.bottom, tabBarHeight);
 
   useEffect(() => {
@@ -123,11 +121,10 @@ export default function Index() {
 
   useEffect(() => {
     if (selectedCategoryIndex < 0) return;
-
     categoryScrollRef.current?.scrollTo({
       x: Math.max(
         0,
-        selectedCategoryIndex * CATEGORY_TAB_WIDTH - CATEGORY_TAB_WIDTH,
+        selectedCategoryIndex * CATEGORY_SLIDE_WIDTH - CATEGORY_SLIDE_WIDTH,
       ),
       animated: true,
     });
@@ -175,22 +172,6 @@ export default function Index() {
 
   const handleSelectCategory = (category: DramaFeedCategory) => {
     setSelectedCategory(category);
-  };
-
-  const selectCategoryByIndex = (index: number) => {
-    const next = CATEGORY_OPTIONS[index];
-    if (!next) return;
-    handleSelectCategory(next.key);
-  };
-
-  const handlePrevCategory = () => {
-    if (!canGoPrevCategory) return;
-    selectCategoryByIndex(selectedCategoryIndex - 1);
-  };
-
-  const handleNextCategory = () => {
-    if (!canGoNextCategory) return;
-    selectCategoryByIndex(selectedCategoryIndex + 1);
   };
 
   const handlePlaybackEnd = (index: number) => {
@@ -281,11 +262,13 @@ export default function Index() {
             onOpenEpisodes={() => openDrama(item.drama)}
           />
         )}
-        pagingEnabled
+        pagingEnabled={true}
         decelerationRate="fast"
         disableIntervalMomentum
+        snapToInterval={height}
         snapToAlignment="start"
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         initialNumToRender={2}
         maxToRenderPerBatch={3}
         windowSize={3}
@@ -316,11 +299,11 @@ export default function Index() {
 
       <View style={[styles.topOverlay, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topHeaderRow}>
-          <View style={styles.headlineWrap}>
-            <Text numberOfLines={1} style={styles.headline}>
-              Shorts: {selectedCategoryLabel}
-            </Text>
-            <Text style={styles.subHeadline}>
+          <Text style={styles.headerTitle}>
+            Shorts • {selectedCategoryLabel}
+          </Text>
+          <View style={styles.counterPill}>
+            <Text style={styles.counterText}>
               {Math.min(activeIndex + 1, shortItems.length)} /{" "}
               {shortItems.length}
             </Text>
@@ -328,28 +311,11 @@ export default function Index() {
         </View>
 
         <View style={styles.categorySliderWrap}>
-          <Pressable
-            style={[
-              styles.sliderNavButton,
-              !canGoPrevCategory && styles.sliderNavButtonDisabled,
-            ]}
-            onPress={handlePrevCategory}
-            disabled={!canGoPrevCategory}
-          >
-            <MaterialCommunityIcons
-              name="chevron-left"
-              size={18}
-              color={
-                canGoPrevCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"
-              }
-            />
-          </Pressable>
-
           <ScrollView
             ref={categoryScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryTabsContent}
+            contentContainerStyle={styles.categorySliderContent}
           >
             {CATEGORY_OPTIONS.map((category) => {
               const isActive = category.key === selectedCategory;
@@ -358,20 +324,20 @@ export default function Index() {
                 <Pressable
                   key={category.key}
                   style={[
-                    styles.categoryTab,
-                    isActive && styles.categoryTabActive,
+                    styles.categorySlideItem,
+                    isActive && styles.categorySlideItemActive,
                   ]}
                   onPress={() => handleSelectCategory(category.key)}
                 >
                   <MaterialCommunityIcons
                     name={category.icon}
                     size={14}
-                    color={isActive ? "#F8FAFC" : "#CBD5E1"}
+                    color={isActive ? "#F8FAFC" : "#94A3B8"}
                   />
                   <Text
                     style={[
-                      styles.categoryTabLabel,
-                      isActive && styles.categoryTabLabelActive,
+                      styles.categorySlideText,
+                      isActive && styles.categorySlideTextActive,
                     ]}
                   >
                     {category.label}
@@ -380,23 +346,6 @@ export default function Index() {
               );
             })}
           </ScrollView>
-
-          <Pressable
-            style={[
-              styles.sliderNavButton,
-              !canGoNextCategory && styles.sliderNavButtonDisabled,
-            ]}
-            onPress={handleNextCategory}
-            disabled={!canGoNextCategory}
-          >
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={18}
-              color={
-                canGoNextCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"
-              }
-            />
-          </Pressable>
         </View>
       </View>
     </View>
@@ -431,74 +380,66 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 10,
   },
-  headlineWrap: {
+  headerTitle: {
     flex: 1,
-    paddingRight: 10,
-  },
-  headline: {
     color: "#F8FAFC",
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "900",
   },
-  subHeadline: {
-    marginTop: 2,
-    color: "#CBD5E1",
+  counterPill: {
+    minWidth: 62,
+    height: 34,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.28)",
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
+  },
+  counterText: {
+    color: "#E2E8F0",
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   categorySliderWrap: {
     marginTop: 10,
-    paddingHorizontal: 8,
-    height: 44,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.28)",
-    backgroundColor: "rgba(15, 23, 42, 0.42)",
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.62)",
+    paddingVertical: 6,
   },
-  sliderNavButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.52)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-  },
-  sliderNavButtonDisabled: {
-    backgroundColor: "rgba(15, 23, 42, 0.2)",
-    borderColor: "rgba(148, 163, 184, 0.12)",
-  },
-  categoryTabsContent: {
+  categorySliderContent: {
     paddingHorizontal: 8,
     gap: 8,
     alignItems: "center",
   },
-  categoryTab: {
-    width: CATEGORY_TAB_WIDTH,
-    height: 30,
+  categorySlideItem: {
+    width: CATEGORY_SLIDE_WIDTH,
+    height: 32,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(203, 213, 225, 0.34)",
-    backgroundColor: "rgba(30, 41, 59, 0.3)",
+    borderColor: "rgba(148, 163, 184, 0.24)",
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    paddingHorizontal: 12,
   },
-  categoryTabActive: {
-    borderColor: "rgba(248, 250, 252, 0.66)",
-    backgroundColor: "rgba(15, 23, 42, 0.88)",
+  categorySlideItemActive: {
+    borderColor: "rgba(248, 250, 252, 0.52)",
+    backgroundColor: "rgba(30, 41, 59, 0.88)",
   },
-  categoryTabLabel: {
-    color: "#CBD5E1",
+  categorySlideText: {
+    color: "#94A3B8",
     fontSize: 12,
     fontWeight: "700",
   },
-  categoryTabLabelActive: {
+  categorySlideTextActive: {
     color: "#F8FAFC",
   },
 });
