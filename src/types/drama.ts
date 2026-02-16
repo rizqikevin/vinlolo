@@ -46,3 +46,14 @@ export type DramaEpisode = {
   cover: string;
   duration: number;
 };
+
+export type DramaSearchItem = {
+  bookId: string;
+  bookName: string;
+  introduction: string;
+  author: string;
+  cover: string;
+  protagonist: string;
+  tagNames: string[];
+  inLibrary: boolean;
+};

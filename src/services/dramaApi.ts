@@ -1,6 +1,7 @@
 import {
   DramaEpisode,
   DramaItem,
+  DramaSearchItem,
   EpisodeCdn,
   EpisodeVideoPath,
   RankVo,
@@ -9,6 +10,8 @@ import {
 
 const API_BASE_URL = "https://dramabox.botraiki.biz/api";
 const EPISODES_API_URL = "https://dramabox.botraiki.biz/api/episodes";
+const POPULAR_SEARCHES_API_URL = "https://dramabox.botraiki.biz/api/popular-searches";
+const SEARCH_API_URL = "https://dramabox.botraiki.biz/api/search";
 const REQUEST_TIMEOUT_MS = 12000;
 const EPISODES_TIMEOUT_MS = 90000;
 const EPISODES_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
@@ -120,6 +123,8 @@ const parseRankVo = (value: unknown): RankVo | null => {
   };
 };
 
+const stripHtmlTags = (value: string): string => value.replace(/<\/?em>/gi, "");
+
 const normalizeDrama = (value: unknown): DramaItem | null => {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
@@ -156,6 +161,29 @@ const normalizeEpisode = (value: unknown): DramaEpisode | null => {
     cdnList: parseCdnList(raw.cdnList),
     cover: toStringSafe(raw.cover),
     duration: toNumberSafe(raw.duration),
+  };
+};
+
+const normalizeSearchDrama = (value: unknown): DramaSearchItem | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+
+  const tagNames =
+    Array.isArray(raw.tagNames) && raw.tagNames.every((item) => typeof item === "string")
+      ? (raw.tagNames as string[])
+      : [];
+
+  const rawBookName = toStringSafe(raw.bookName, "Tanpa Judul");
+
+  return {
+    bookId: toStringSafe(raw.bookId),
+    bookName: stripHtmlTags(rawBookName),
+    introduction: toStringSafe(raw.introduction, "Belum ada sinopsis."),
+    author: toStringSafe(raw.author),
+    cover: toStringSafe(raw.cover),
+    protagonist: toStringSafe(raw.protagonist),
+    tagNames,
+    inLibrary: Boolean(raw.inLibrary),
   };
 };
 
@@ -274,5 +302,66 @@ export const fetchDramaEpisodes = async (
   } finally {
     clear();
     releaseEpisodeSlot();
+  }
+};
+
+export const fetchPopularSearches = async (signal?: AbortSignal): Promise<DramaItem[]> => {
+  const { signal: timeoutSignal, clear } = withTimeout(signal);
+
+  try {
+    const response = await fetch(POPULAR_SEARCHES_API_URL, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: timeoutSignal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gagal memuat popular searches. Status: ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+      throw new Error("Format respons popular searches tidak valid.");
+    }
+
+    return payload
+      .map((item) => normalizeDrama(item))
+      .filter((item): item is DramaItem => Boolean(item));
+  } finally {
+    clear();
+  }
+};
+
+export const fetchDramaSearch = async (
+  query: string,
+  signal?: AbortSignal
+): Promise<DramaSearchItem[]> => {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return [];
+
+  const { signal: timeoutSignal, clear } = withTimeout(signal);
+  const queryParams = new URLSearchParams({ query: normalizedQuery });
+
+  try {
+    const response = await fetch(`${SEARCH_API_URL}?${queryParams.toString()}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: timeoutSignal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gagal mencari drama. Status: ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+      throw new Error("Format respons search tidak valid.");
+    }
+
+    return payload
+      .map((item) => normalizeSearchDrama(item))
+      .filter((item): item is DramaSearchItem => Boolean(item));
+  } finally {
+    clear();
   }
 };

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { DramaEpisode } from "@/src/types/drama";
 import { formatDuration, getEpisodeLabel, isEpisodeVip } from "@/src/utils/episodes";
@@ -26,11 +26,18 @@ export const ShortVideoSlide = ({
 }: ShortVideoSlideProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [progressWidth, setProgressWidth] = useState(0);
+  const playbackRates = [0.75, 1, 1.25, 1.5, 2];
 
-  const player = useVideoPlayer({ uri: streamUrl }, (videoPlayer) => {
+  const source = useMemo(() => ({ uri: streamUrl }), [streamUrl]);
+  const player = useVideoPlayer(source, (videoPlayer) => {
     videoPlayer.loop = true;
     videoPlayer.muted = false;
-    videoPlayer.timeUpdateEventInterval = 0;
+    videoPlayer.timeUpdateEventInterval = 0.25;
+    videoPlayer.playbackRate = 1;
   });
 
   useEffect(() => {
@@ -42,9 +49,19 @@ export const ShortVideoSlide = ({
       setIsMuted(muted);
     });
 
+    const sourceLoadSub = player.addListener("sourceLoad", ({ duration: loadedDuration }) => {
+      setDuration(loadedDuration || 0);
+    });
+
+    const timeSub = player.addListener("timeUpdate", ({ currentTime: position }) => {
+      setCurrentTime(position || 0);
+    });
+
     return () => {
       playingSub.remove();
       mutedSub.remove();
+      sourceLoadSub.remove();
+      timeSub.remove();
     };
   }, [player]);
 
@@ -55,6 +72,12 @@ export const ShortVideoSlide = ({
     }
 
     player.pause();
+  }, [isActive, player]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setCurrentTime(player.currentTime || 0);
+    }
   }, [isActive, player]);
 
   const togglePlay = () => {
@@ -70,6 +93,70 @@ export const ShortVideoSlide = ({
     player.muted = !isMuted;
   };
 
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+  const seekToLocationX = useCallback(
+    (locationX: number) => {
+      if (progressWidth <= 0 || duration <= 0) return;
+      const ratio = clamp(locationX / progressWidth, 0, 1);
+      const nextTime = ratio * duration;
+      player.currentTime = nextTime;
+      setCurrentTime(nextTime);
+    },
+    [duration, progressWidth, player]
+  );
+
+  const seekPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          seekToLocationX(event.nativeEvent.locationX);
+        },
+        onPanResponderMove: (event) => {
+          seekToLocationX(event.nativeEvent.locationX);
+        },
+        onPanResponderRelease: () => undefined,
+      }),
+    [seekToLocationX]
+  );
+
+  const seekBy = (seconds: number) => {
+    const target = clamp(
+      (player.currentTime || 0) + seconds,
+      0,
+      duration > 0 ? duration : Number.MAX_SAFE_INTEGER
+    );
+    player.currentTime = target;
+    setCurrentTime(target);
+  };
+
+  const cyclePlaybackRate = () => {
+    const currentIndex = playbackRates.findIndex((rate) => rate === playbackRate);
+    const nextRate = playbackRates[(currentIndex + 1) % playbackRates.length];
+    player.playbackRate = nextRate;
+    setPlaybackRate(nextRate);
+  };
+
+  const progressRatio = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
+
+  const formatClock = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return "00:00";
+    const total = Math.floor(seconds);
+    const hour = Math.floor(total / 3600);
+    const minute = Math.floor((total % 3600) / 60);
+    const second = total % 60;
+
+    if (hour > 0) {
+      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(
+        second
+      ).padStart(2, "0")}`;
+    }
+
+    return `${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
+  };
+
   return (
     <View style={[styles.container, { height }]}>
       <VideoView
@@ -77,7 +164,7 @@ export const ShortVideoSlide = ({
         player={player}
         contentFit="cover"
         nativeControls={false}
-        allowsFullscreen={false}
+        fullscreenOptions={{ enable: false }}
       />
 
       <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay}>
@@ -116,6 +203,40 @@ export const ShortVideoSlide = ({
           <Text style={styles.metaText}>
             Durasi {formatDuration(episode.duration)} • Swipe untuk episode berikutnya
           </Text>
+
+          <View style={styles.controlsRow}>
+            <Pressable style={styles.controlButton} onPress={() => seekBy(-10)}>
+              <MaterialCommunityIcons name="rewind-10" size={18} color="#F8FAFC" />
+            </Pressable>
+            <Pressable style={styles.controlButton} onPress={togglePlay}>
+              <MaterialCommunityIcons
+                name={isPlaying ? "pause" : "play"}
+                size={18}
+                color="#F8FAFC"
+              />
+            </Pressable>
+            <Pressable style={styles.controlButton} onPress={() => seekBy(10)}>
+              <MaterialCommunityIcons name="fast-forward-10" size={18} color="#F8FAFC" />
+            </Pressable>
+            <Pressable style={styles.speedButton} onPress={cyclePlaybackRate}>
+              <Text style={styles.speedText}>{playbackRate}x</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.timeRow}>
+            <Text style={styles.timeText}>{formatClock(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatClock(duration)}</Text>
+          </View>
+
+          <View
+            style={styles.progressContainer}
+            onLayout={(event) => setProgressWidth(event.nativeEvent.layout.width)}
+            {...seekPanResponder.panHandlers}
+          >
+            <View style={styles.progressTrack} />
+            <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
+            <View style={[styles.progressThumb, { left: `${progressRatio * 100}%` }]} />
+          </View>
         </View>
       </View>
     </View>
@@ -196,5 +317,75 @@ const styles = StyleSheet.create({
     color: "#CBD5E1",
     fontSize: 12,
     lineHeight: 16,
+  },
+  controlsRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  controlButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.35)",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+  },
+  speedButton: {
+    marginLeft: "auto",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.35)",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 10,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedText: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  timeRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  timeText: {
+    color: "#E2E8F0",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  progressContainer: {
+    marginTop: 8,
+    height: 20,
+    justifyContent: "center",
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(148, 163, 184, 0.45)",
+  },
+  progressFill: {
+    position: "absolute",
+    left: 0,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#F97316",
+  },
+  progressThumb: {
+    position: "absolute",
+    marginLeft: -6,
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: "#F97316",
+    borderWidth: 1,
+    borderColor: "#FDBA74",
   },
 });
