@@ -13,6 +13,7 @@ type ShortVideoSlideProps = {
   isActive: boolean;
   topInset: number;
   bottomInset: number;
+  onPlaybackEnd?: () => void;
 };
 
 export const ShortVideoSlide = ({
@@ -23,6 +24,7 @@ export const ShortVideoSlide = ({
   isActive,
   topInset,
   bottomInset,
+  onPlaybackEnd,
 }: ShortVideoSlideProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -34,7 +36,7 @@ export const ShortVideoSlide = ({
 
   const source = useMemo(() => ({ uri: streamUrl }), [streamUrl]);
   const player = useVideoPlayer(source, (videoPlayer) => {
-    videoPlayer.loop = true;
+    videoPlayer.loop = false;
     videoPlayer.muted = false;
     videoPlayer.timeUpdateEventInterval = 0.25;
     videoPlayer.playbackRate = 1;
@@ -56,14 +58,19 @@ export const ShortVideoSlide = ({
     const timeSub = player.addListener("timeUpdate", ({ currentTime: position }) => {
       setCurrentTime(position || 0);
     });
+    const endedSub = player.addListener("playToEnd", () => {
+      if (!isActive) return;
+      onPlaybackEnd?.();
+    });
 
     return () => {
       playingSub.remove();
       mutedSub.remove();
       sourceLoadSub.remove();
       timeSub.remove();
+      endedSub.remove();
     };
-  }, [player]);
+  }, [isActive, onPlaybackEnd, player]);
 
   useEffect(() => {
     if (isActive) {
