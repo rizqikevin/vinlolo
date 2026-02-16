@@ -12,10 +12,7 @@ export default function RootLayout() {
       <Stack.Screen
         name="drama/[bookId]"
         options={{
-          title: "Detail Drama",
-          headerStyle: { backgroundColor: palette.surface },
-          headerTintColor: palette.textPrimary,
-          headerShadowVisible: false,
+          headerShown: false,
         }}
       />
     </Stack>
