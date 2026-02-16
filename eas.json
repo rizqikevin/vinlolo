@@ -11,6 +11,18 @@
     "preview": {
       "distribution": "internal"
     },
+    "android-apk": {
+      "extends": "preview",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "ios-ipa": {
+      "extends": "preview",
+      "ios": {
+        "simulator": false
+      }
+    },
     "production": {
       "autoIncrement": true
     }
