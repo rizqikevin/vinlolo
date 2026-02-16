@@ -1,4 +1,15 @@
+import { EmptyState } from "@/src/components/EmptyState";
+import { ShortVideoSlide } from "@/src/components/ShortVideoSlide";
+import { useHomeShortFeed } from "@/src/hooks/useHomeShortFeed";
+import { useDramaFeed } from "@/src/hooks/useLatestDramas";
+import { AsyncStorage } from "@/src/services/asyncStorage";
+import { DramaFeedCategory } from "@/src/services/dramaApi";
+import { palette } from "@/src/theme/palette";
+import { DramaItem } from "@/src/types/drama";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useIsFocused } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ComponentProps, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -13,17 +24,7 @@ import {
   View,
   ViewToken,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { useIsFocused } from "@react-navigation/native";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EmptyState } from "@/src/components/EmptyState";
-import { ShortVideoSlide } from "@/src/components/ShortVideoSlide";
-import { useHomeShortFeed } from "@/src/hooks/useHomeShortFeed";
-import { useDramaFeed } from "@/src/hooks/useLatestDramas";
-import { AsyncStorage } from "@/src/services/asyncStorage";
-import { DramaFeedCategory } from "@/src/services/dramaApi";
-import { palette } from "@/src/theme/palette";
 
 const LAST_CATEGORY_STORAGE_KEY = "last_selected_category";
 const CATEGORY_TAB_WIDTH = 122;
@@ -46,7 +47,8 @@ export default function Index() {
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const [selectedCategory, setSelectedCategory] = useState<DramaFeedCategory>("latest");
+  const [selectedCategory, setSelectedCategory] =
+    useState<DramaFeedCategory>("latest");
   const [isCategoryHydrated, setIsCategoryHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const categoryScrollRef = useRef<ScrollView>(null);
@@ -69,26 +71,30 @@ export default function Index() {
   const shortsListRef = useRef<FlatList<(typeof shortItems)[number]>>(null);
 
   const selectedCategoryLabel = useMemo(
-    () => CATEGORY_OPTIONS.find((item) => item.key === selectedCategory)?.label || "Terbaru",
-    [selectedCategory]
+    () =>
+      CATEGORY_OPTIONS.find((item) => item.key === selectedCategory)?.label ||
+      "Terbaru",
+    [selectedCategory],
   );
   const selectedCategoryIndex = useMemo(
     () => CATEGORY_OPTIONS.findIndex((item) => item.key === selectedCategory),
-    [selectedCategory]
+    [selectedCategory],
   );
   const canGoPrevCategory = selectedCategoryIndex > 0;
   const canGoNextCategory = selectedCategoryIndex < CATEGORY_OPTIONS.length - 1;
   const bottomControlsInset = Math.max(insets.bottom, tabBarHeight);
 
-  const currentItem = shortItems[activeIndex];
-
   useEffect(() => {
     let mounted = true;
 
     const hydrateCategory = async () => {
-      const savedCategory = await AsyncStorage.getItem(LAST_CATEGORY_STORAGE_KEY);
+      const savedCategory = await AsyncStorage.getItem(
+        LAST_CATEGORY_STORAGE_KEY,
+      );
       if (savedCategory && mounted) {
-        const isValid = CATEGORY_OPTIONS.some((item) => item.key === savedCategory);
+        const isValid = CATEGORY_OPTIONS.some(
+          (item) => item.key === savedCategory,
+        );
         if (isValid) {
           setSelectedCategory(savedCategory as DramaFeedCategory);
         }
@@ -119,7 +125,10 @@ export default function Index() {
     if (selectedCategoryIndex < 0) return;
 
     categoryScrollRef.current?.scrollTo({
-      x: Math.max(0, selectedCategoryIndex * CATEGORY_TAB_WIDTH - CATEGORY_TAB_WIDTH),
+      x: Math.max(
+        0,
+        selectedCategoryIndex * CATEGORY_TAB_WIDTH - CATEGORY_TAB_WIDTH,
+      ),
       animated: true,
     });
   }, [selectedCategoryIndex]);
@@ -129,22 +138,25 @@ export default function Index() {
   });
 
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken<(typeof shortItems)[number]>[] }) => {
-      const firstVisible = viewableItems.find((item) => item.isViewable && item.index != null);
+    ({
+      viewableItems,
+    }: {
+      viewableItems: ViewToken<(typeof shortItems)[number]>[];
+    }) => {
+      const firstVisible = viewableItems.find(
+        (item) => item.isViewable && item.index != null,
+      );
       if (typeof firstVisible?.index === "number") {
         setActiveIndex(firstVisible.index);
       }
-    }
+    },
   );
 
   const handleRefresh = async () => {
     await Promise.all([refreshFeed(), refreshShorts()]);
   };
 
-  const openCurrentDrama = () => {
-    if (!currentItem) return;
-
-    const drama = currentItem.drama;
+  const openDrama = (drama: DramaItem) => {
     router.push({
       pathname: "/drama/[bookId]",
       params: {
@@ -199,7 +211,9 @@ export default function Index() {
       <View style={styles.stateScreen}>
         <StatusBar style="light" />
         <ActivityIndicator color={palette.accentSoft} size="large" />
-        <Text style={styles.stateText}>Memuat shorts kategori {selectedCategoryLabel}...</Text>
+        <Text style={styles.stateText}>
+          Memuat shorts kategori {selectedCategoryLabel}...
+        </Text>
       </View>
     );
   }
@@ -264,6 +278,7 @@ export default function Index() {
             topInset={insets.top}
             bottomInset={bottomControlsInset}
             onPlaybackEnd={() => handlePlaybackEnd(index)}
+            onOpenEpisodes={() => openDrama(item.drama)}
           />
         )}
         pagingEnabled
@@ -306,25 +321,27 @@ export default function Index() {
               Shorts: {selectedCategoryLabel}
             </Text>
             <Text style={styles.subHeadline}>
-              {Math.min(activeIndex + 1, shortItems.length)} / {shortItems.length}
+              {Math.min(activeIndex + 1, shortItems.length)} /{" "}
+              {shortItems.length}
             </Text>
           </View>
-
-          <Pressable style={styles.iconButton} onPress={openCurrentDrama}>
-            <MaterialCommunityIcons name="open-in-new" size={18} color="#F8FAFC" />
-          </Pressable>
         </View>
 
         <View style={styles.categorySliderWrap}>
           <Pressable
-            style={[styles.sliderNavButton, !canGoPrevCategory && styles.sliderNavButtonDisabled]}
+            style={[
+              styles.sliderNavButton,
+              !canGoPrevCategory && styles.sliderNavButtonDisabled,
+            ]}
             onPress={handlePrevCategory}
             disabled={!canGoPrevCategory}
           >
             <MaterialCommunityIcons
               name="chevron-left"
               size={18}
-              color={canGoPrevCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"}
+              color={
+                canGoPrevCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"
+              }
             />
           </Pressable>
 
@@ -340,7 +357,10 @@ export default function Index() {
               return (
                 <Pressable
                   key={category.key}
-                  style={[styles.categoryTab, isActive && styles.categoryTabActive]}
+                  style={[
+                    styles.categoryTab,
+                    isActive && styles.categoryTabActive,
+                  ]}
                   onPress={() => handleSelectCategory(category.key)}
                 >
                   <MaterialCommunityIcons
@@ -348,7 +368,12 @@ export default function Index() {
                     size={14}
                     color={isActive ? "#F8FAFC" : "#CBD5E1"}
                   />
-                  <Text style={[styles.categoryTabLabel, isActive && styles.categoryTabLabelActive]}>
+                  <Text
+                    style={[
+                      styles.categoryTabLabel,
+                      isActive && styles.categoryTabLabelActive,
+                    ]}
+                  >
                     {category.label}
                   </Text>
                 </Pressable>
@@ -357,14 +382,19 @@ export default function Index() {
           </ScrollView>
 
           <Pressable
-            style={[styles.sliderNavButton, !canGoNextCategory && styles.sliderNavButtonDisabled]}
+            style={[
+              styles.sliderNavButton,
+              !canGoNextCategory && styles.sliderNavButtonDisabled,
+            ]}
             onPress={handleNextCategory}
             disabled={!canGoNextCategory}
           >
             <MaterialCommunityIcons
               name="chevron-right"
               size={18}
-              color={canGoNextCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"}
+              color={
+                canGoNextCategory ? "#E2E8F0" : "rgba(226, 232, 240, 0.42)"
+              }
             />
           </Pressable>
         </View>
@@ -416,16 +446,6 @@ const styles = StyleSheet.create({
     color: "#CBD5E1",
     fontSize: 11,
     fontWeight: "600",
-  },
-  iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
   },
   categorySliderWrap: {
     marginTop: 10,

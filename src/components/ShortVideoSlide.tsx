@@ -14,6 +14,7 @@ type ShortVideoSlideProps = {
   topInset: number;
   bottomInset: number;
   onPlaybackEnd?: () => void;
+  onOpenEpisodes?: () => void;
 };
 
 export const ShortVideoSlide = ({
@@ -25,6 +26,7 @@ export const ShortVideoSlide = ({
   topInset,
   bottomInset,
   onPlaybackEnd,
+  onOpenEpisodes,
 }: ShortVideoSlideProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -235,14 +237,21 @@ export const ShortVideoSlide = ({
             <Text style={styles.timeText}>{formatClock(duration)}</Text>
           </View>
 
-          <View
-            style={styles.progressContainer}
-            onLayout={(event) => setProgressWidth(event.nativeEvent.layout.width)}
-            {...seekPanResponder.panHandlers}
-          >
-            <View style={styles.progressTrack} />
-            <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
-            <View style={[styles.progressThumb, { left: `${progressRatio * 100}%` }]} />
+          <View style={styles.progressActionRail}>
+            <View
+              style={styles.progressContainer}
+              onLayout={(event) => setProgressWidth(event.nativeEvent.layout.width)}
+              {...seekPanResponder.panHandlers}
+            >
+              <View style={styles.progressTrack} />
+              <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
+              <View style={[styles.progressThumb, { left: `${progressRatio * 100}%` }]} />
+            </View>
+
+            <Pressable style={styles.watchAllButton} onPress={onOpenEpisodes}>
+              <MaterialCommunityIcons name="playlist-play" size={18} color="#F8FAFC" />
+              <Text style={styles.watchAllButtonText}>Tonton Semua Episode</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -368,8 +377,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  progressContainer: {
+  progressActionRail: {
     marginTop: 8,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  progressContainer: {
+    width: "100%",
+    alignSelf: "stretch",
     height: 20,
     justifyContent: "center",
   },
@@ -394,5 +409,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#F97316",
     borderWidth: 1,
     borderColor: "#FDBA74",
+  },
+  watchAllButton: {
+    marginTop: 10,
+    minHeight: 40,
+    width: "100%",
+    alignSelf: "stretch",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.35)",
+    backgroundColor: "rgba(15, 23, 42, 0.82)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  watchAllButtonText: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

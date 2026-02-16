@@ -1,8 +1,13 @@
 import { palette } from "@/src/theme/palette";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 10) : insets.bottom;
+
   return (
     <Tabs
       screenOptions={{
@@ -10,11 +15,15 @@ export default function TabsLayout() {
         tabBarActiveTintColor: "#F8FAFC",
         tabBarInactiveTintColor: "#94A3B8",
         tabBarStyle: {
-          backgroundColor: "#FFFFFF000",
+          backgroundColor: "rgba(15, 23, 42, 0.95)",
           borderTopColor: "#1E293B",
-          height: 62,
+          height: 54 + bottomInset,
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: bottomInset,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "700",
         },
         sceneStyle: {
           backgroundColor: palette.background,
