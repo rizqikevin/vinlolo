@@ -33,8 +33,6 @@ const CATEGORY_OPTIONS: {
   label: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
 }[] = [
-  { key: "for-you", label: "FYP", icon: "cards-heart-outline" },
-  { key: "trending", label: "Teman", icon: "account-group-outline" },
   { key: "latest", label: "Terbaru", icon: "clock-outline" },
   { key: "vip", label: "VIP", icon: "crown-outline" },
   { key: "random", label: "Random", icon: "shuffle-variant" },
@@ -48,7 +46,7 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] =
-    useState<DramaFeedCategory>("for-you");
+    useState<DramaFeedCategory>("latest");
   const [isCategoryHydrated, setIsCategoryHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const categoryScrollRef = useRef<ScrollView>(null);
