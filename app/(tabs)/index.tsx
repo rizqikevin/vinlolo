@@ -2,6 +2,7 @@ import { EmptyState } from "@/src/components/EmptyState";
 import { ShortVideoSlide } from "@/src/components/ShortVideoSlide";
 import { useHomeShortFeed } from "@/src/hooks/useHomeShortFeed";
 import { useDramaFeed } from "@/src/hooks/useLatestDramas";
+import { useNetworkStatus } from "@/src/hooks/useNetworkStatus";
 import { AsyncStorage } from "@/src/services/asyncStorage";
 import { DramaFeedCategory } from "@/src/services/dramaApi";
 import { palette } from "@/src/theme/palette";
@@ -11,7 +12,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ComponentProps, useEffect, useMemo, useRef, useState } from "react";
+import { ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -42,6 +43,7 @@ const CATEGORY_OPTIONS: {
 export default function Index() {
   const router = useRouter();
   const isFocused = useIsFocused();
+  const { isOnline } = useNetworkStatus();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -63,10 +65,16 @@ export default function Index() {
     items: shortItems,
     isLoading: isLoadingShorts,
     isRefreshing: isRefreshingShorts,
+    isUsingOfflineCache,
     error: shortsError,
+    markAsWatched,
     refresh: refreshShorts,
-  } = useHomeShortFeed(dramas);
+  } = useHomeShortFeed(dramas, {
+    category: selectedCategory,
+    isOnline,
+  });
   const shortsListRef = useRef<FlatList<(typeof shortItems)[number]>>(null);
+  const wasOfflineRef = useRef(false);
 
   const selectedCategoryLabel = useMemo(
     () =>
@@ -147,9 +155,27 @@ export default function Index() {
     },
   );
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     await Promise.all([refreshFeed(), refreshShorts()]);
-  };
+  }, [refreshFeed, refreshShorts]);
+
+  useEffect(() => {
+    if (!isOnline) {
+      wasOfflineRef.current = true;
+      return;
+    }
+
+    if (!wasOfflineRef.current) return;
+    wasOfflineRef.current = false;
+    void handleRefresh();
+  }, [handleRefresh, isOnline]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    const activeItem = shortItems[activeIndex];
+    if (!activeItem) return;
+    void markAsWatched(activeItem.id);
+  }, [activeIndex, isFocused, markAsWatched, shortItems]);
 
   const openDrama = (drama: DramaItem) => {
     router.push({
@@ -197,7 +223,7 @@ export default function Index() {
     );
   }
 
-  if (feedError && dramas.length === 0) {
+  if (feedError && dramas.length === 0 && shortItems.length === 0) {
     return (
       <View style={styles.stateScreen}>
         <StatusBar style="light" />
@@ -297,9 +323,23 @@ export default function Index() {
 
       <View style={[styles.topOverlay, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topHeaderRow}>
-          <Text style={styles.headerTitle}>
-            Shorts • {selectedCategoryLabel}
-          </Text>
+          <View style={styles.headerInfoWrap}>
+            <Text style={styles.headerTitle}>
+              Shorts • {selectedCategoryLabel}
+            </Text>
+            {!isOnline || isUsingOfflineCache ? (
+              <View style={styles.offlineBadge}>
+                <MaterialCommunityIcons
+                  name={isOnline ? "database-outline" : "wifi-off"}
+                  size={12}
+                  color="#FDE68A"
+                />
+                <Text style={styles.offlineBadgeText}>
+                  {isOnline ? "Cache" : "Offline"}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <View style={styles.counterPill}>
             <Text style={styles.counterText}>
               {Math.min(activeIndex + 1, shortItems.length)} /{" "}
@@ -376,15 +416,37 @@ const styles = StyleSheet.create({
   },
   topHeaderRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
   },
-  headerTitle: {
+  headerInfoWrap: {
     flex: 1,
+  },
+  headerTitle: {
     color: "#F8FAFC",
     fontSize: 18,
     fontWeight: "900",
+  },
+  offlineBadge: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(253, 230, 138, 0.45)",
+    backgroundColor: "rgba(146, 64, 14, 0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  offlineBadgeText: {
+    color: "#FDE68A",
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
   counterPill: {
     minWidth: 62,

@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 10) : insets.bottom;
+  const bottomInset =
+    Platform.OS === "android" ? Math.max(insets.bottom, 10) : insets.bottom;
 
   return (
     <Tabs
@@ -49,6 +50,19 @@ export default function TabsLayout() {
           title: "Search",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="magnify" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: "About",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="information"
+              color={color}
+              size={size}
+            />
           ),
         }}
       />
